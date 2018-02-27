@@ -1,0 +1,18 @@
+{
+  "name": "ruum",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "lint": "standard src/**/*.js",
+    "build": "rollup ./src/index.js --output.name 'layOutDay' --output.format iife --output.file dist/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "rollup": "^0.56.3",
+    "standard": "^11.0.0"
+  }
+}
