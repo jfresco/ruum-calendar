@@ -6,6 +6,7 @@
   "scripts": {
     "lint": "standard src/**/*.js",
     "build": "rollup ./src/index.js --output.name 'layOutDay' --output.format iife --output.file dist/app.js",
+    "dev": "npm run build -- -w",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -13,6 +14,7 @@
   "license": "ISC",
   "devDependencies": {
     "rollup": "^0.56.3",
+    "rollup-watch": "^4.3.1",
     "standard": "^11.0.0"
   }
 }
