@@ -29,39 +29,10 @@ View.prototype.render = function (model) {
 
   // Commit to DOM
   const $container = this.dom.querySelector('.container');
-  $container.style.gridTemplateColumns = `repeat(${model.columnsCount}, auto)`;
   // Clear container before insert new elements
   $container.innerHTML = '';
   $container.appendChild($eventsFragment);
 };
-
-function lcd (a, b) {
-  if (b === 0) {
-    return a
-  }
-
-  const mod = a % b;
-  return mod === 0 ? b : lcd(b, mod)
-}
-
-function lcm (a, b) {
-  return a * b / lcd(a, b)
-}
-
-function lcmMultiple (numbers) {
-  if (numbers.length === 1) {
-    return numbers.pop()
-  }
-
-  const [a, b] = numbers;
-  return lcmMultiple([lcm(a, b), ...numbers.slice(2)])
-}
-
-var MathHelpers = {
-  lcd,
-  lcm,
-  lcmMultiple
-}
 
 function ViewModel (model) {
   const STEP = 15; // minutes
@@ -74,20 +45,18 @@ function ViewModel (model) {
     return model.groups.find(g => g.some(e => event.isEqualTo(e)))
   }
 
-  function getGroupPosition (event) {
-    return model.groups
-      .map(g => g.findIndex(e => event.isEqualTo(e)))
-      .find(p => p !== -1)
+  function getGroupNumber (event) {
+    return model.groups.findIndex(g => g.some(e => e.isEqualTo(event)))
   }
 
   // The amount of columns that will have the grid
-  this.columnsCount = MathHelpers.lcmMultiple(model.events.map(e => e.overlapCount));
+  this.columnsCount = Math.max(...model.groups.map(g => g.length));
 
   // Decorate each event with its position and size in the grid
   this.events = model.events.map(event => {
     const cellSize = this.columnsCount / getGroup(event).length;
-    const gridColumnStart = getGroupPosition(event) * cellSize + 1;
-    const gridColumnEnd = gridColumnStart + cellSize;
+    const gridColumnStart = getGroupNumber(event) + 1;
+    const gridColumnEnd = getGroupNumber(event) + cellSize - 1;
     const gridRowStart = timeToRow(event.start);
     const gridRowEnd = timeToRow(event.end);
 
@@ -150,21 +119,20 @@ function Model (_events) {
   this.events = _events.map(e => new Event(e)).sort(by('start'));
 
   const groups = [];
-  this.events.forEach(event => {
-    let pushed = false;
-    groups.forEach(group => {
-      if (group.some(e => event.isOverlappedWith(e))) {
+  for (var i = 0; i < this.events.length; i++) {
+    const event = this.events[i];
+    let done = false;
+    for (var j = 0; j < groups.length && !done; j++) {
+      const group = groups[j];
+      if (!group.some(e => e.isOverlappedWith(event))) {
         group.push(event);
-        pushed = true;
+        done = true;
       }
-    });
-
-    if (!pushed) {
+    }
+    if (!done) {
       groups.push([event]);
     }
-
-    pushed = false;
-  });
+  }
 
   this.groups = groups;
 

@@ -30,22 +30,21 @@ function Model (_events) {
 
   this.events = _events.map(e => new Event(e)).sort(by('start'))
 
-  const groups = []
-  this.events.forEach(event => {
-    let pushed = false
-    groups.forEach(group => {
-      if (group.some(e => event.isOverlappedWith(e))) {
+  const groups = [];
+  for (var i = 0; i < this.events.length; i++) {
+    const event = this.events[i]
+    let done = false
+    for (var j = 0; j < groups.length && !done; j++) {
+      const group = groups[j]
+      if (!group.some(e => e.isOverlappedWith(event))) {
         group.push(event)
-        pushed = true
+        done = true
       }
-    })
-
-    if (!pushed) {
+    }
+    if (!done) {
       groups.push([event])
     }
-
-    pushed = false
-  })
+  }
 
   this.groups = groups
 

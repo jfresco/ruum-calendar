@@ -26,7 +26,6 @@ View.prototype.render = function (model) {
 
   // Commit to DOM
   const $container = this.dom.querySelector('.container')
-  $container.style.gridTemplateColumns = `repeat(${model.columnsCount}, auto)`
   // Clear container before insert new elements
   $container.innerHTML = ''
   $container.appendChild($eventsFragment)
