@@ -5,27 +5,30 @@ function View (_document) {
   this.dom = _document;
 }
 
+View.prototype.getEventElement = function (event) {
+  // Create div
+  const $event = this.dom.createElement('div');
+  $event.classList.add('event');
+
+  // Set event position with inline styles
+  $event.style.gridRowStart = event.gridRowStart;
+  $event.style.gridRowEnd = event.gridRowEnd;
+  $event.style.gridColumnStart = event.gridColumnStart;
+  $event.style.gridColumnEnd = event.gridColumnEnd;
+
+  // Create and append inner element
+  const $eventInner = this.dom.createElement('span');
+  $eventInner.innerHTML = `<div class="title">Sample Item</div><div class="subtitle">Sample description</div>`;
+  $event.appendChild($eventInner);
+
+  return $event
+};
+
 View.prototype.render = function (model) {
   const $eventsFragment = this.dom.createDocumentFragment();
-  model.events.forEach(event => {
-    // Create div
-    const $event = this.dom.createElement('div');
-    $event.classList.add('event');
-
-    // Set event position with inline styles
-    $event.style.gridRowStart = event.gridRowStart;
-    $event.style.gridRowEnd = event.gridRowEnd;
-    $event.style.gridColumnStart = event.gridColumnStart;
-    $event.style.gridColumnEnd = event.gridColumnEnd;
-
-    // Create and append inner element
-    const $eventInner = this.dom.createElement('span');
-    $eventInner.innerHTML = `<div class="title">Sample Item</div><div class="subtitle">Sample description</div>`;
-    $event.appendChild($eventInner);
-
-    // Add div to fragment
-    $eventsFragment.appendChild($event);
-  });
+  model.events
+    .map(event => this.getEventElement(event))
+    .forEach($event => $eventsFragment.appendChild($event));
 
   // Commit to DOM
   const $container = this.dom.querySelector('.container');
@@ -73,33 +76,34 @@ function ViewModel (model) {
     return model.groups.findIndex(g => g.some(e => e.isEqualTo(event)))
   }
 
+  // Gets an array of Events that are overlapped direct or indirectly to `event`, including itself.
   function getCollisionChain (event) {
-    const chain = [{ group: getGroupNumber(event), event }];
-    let otherGroups = model.groups.filter(group => group.every(e => !event.isEqualTo(e)));
+    const chain = [event];
+    const otherGroups = model.groups.filter(group => group.every(e => !event.isEqualTo(e)));
+
     while (otherGroups.length > 0) {
-      const group = otherGroups[0];
-      otherGroups = otherGroups.slice(1);
-      const overlappedEvent = group.find(e => chain.some(({ event }) => e.isOverlappedWith(event)));
+      const group = otherGroups.shift();
+      // Find in the group an event that overlaps with something of the chain. If there is match, it will be
+      // added to the chain.
+      const overlappedEvent = group.find(e => chain.some(ev => e.isOverlappedWith(ev)));
       if (overlappedEvent) {
-        chain.push({ group: getGroupNumber(overlappedEvent), event: overlappedEvent });
+        chain.push(overlappedEvent);
       }
     }
+
     return chain
   }
 
-  // The amount of columns that will have the grid
-  // const columnsCount = MathHelpers.lcmMultiple(range(1, model.groups.length))
-  // const columnsCount = model.groups.length
+  // The amount of columns that will have the grid is the LCM of all possible collisions
   const possibleCollisions = model.events.map(e => getCollisionChain(e).length);
-  console.log('possibleCollisions', possibleCollisions);
   const columnsCount = MathHelpers.lcmMultiple(possibleCollisions);
-  console.log('columnsCount', columnsCount);
+
   // Decorate each event with its position and size in the grid
   this.events = model.events.map(event => {
-    const group = getGroupNumber(event);
-    const collisions = getCollisionChain(event).length;
-    console.log('event', event, 'collisions', getCollisionChain(event));
-    const cellSize = columnsCount / collisions;
+    const group = getGroupNumber(event); // zero-based
+    const collisionChainLength = getCollisionChain(event).length;
+
+    const cellSize = columnsCount / collisionChainLength;
     const gridColumnStart = group * cellSize + 1;
     const gridColumnEnd = gridColumnStart + cellSize;
     const gridRowStart = timeToRow(event.start);
@@ -108,8 +112,6 @@ function ViewModel (model) {
     return {
       ...event,
       cellSize,
-      group,
-      collisions,
       gridColumnStart,
       gridColumnEnd,
       gridRowStart,
@@ -117,6 +119,20 @@ function ViewModel (model) {
     }
   });
 }
+
+// Compare function for Array#sort. Allows to sort by an object property
+const by = (property) => {
+  return function (a, b) {
+    if (a[property] < b[property]) {
+      return -1
+    }
+    if (a[property] > b[property]) {
+      return 1
+    }
+
+    return 0
+  }
+};
 
 function Event (_event, _overlapCount) {
   this.start = _event.start;
@@ -137,58 +153,26 @@ Event.prototype.isEqualTo = function ({ start, end }) {
 };
 
 function Model (_events) {
-  // Compare function for Array#sort. Allows to sort by an object property
-  function by (property) {
-    return function (a, b) {
-      if (a[property] < b[property]) {
-        return -1
-      }
-      if (a[property] > b[property]) {
-        return 1
-      }
+  this.events = _events
+    .map(e => new Event(e))
+    .sort(by('start'));
 
-      return 0
-    }
-  }
-
-  // Returns the maximum overlapping of an event in its group or groups
-  function getOverlapCount (event) {
-    let count = 0;
-    groups
-      .filter(g => g.some(e => e.isEqualTo(event)))
-      .forEach(g => {
-        if (g.length > count) {
-          count = g.length;
-        }
-      });
-    return count
-  }
-
-  this.events = _events.map(e => new Event(e)).sort(by('start'));
-
-  const groups = [];
-  for (var i = 0; i < this.events.length; i++) {
-    const event = this.events[i];
-    let done = false;
-    for (var j = 0; j < groups.length && !done; j++) {
-      const group = groups[j];
-      if (!group.some(e => e.isOverlappedWith(event))) {
-        group.push(event);
-        done = true;
-      }
-    }
-    if (!done) {
-      groups.push([event]);
-    }
-  }
-
-  this.groups = groups;
-
-  // Inject `overlapCount` property to each event
-  for (let i = 0; i < this.events.length; i++) {
-    this.events[i].overlapCount = getOverlapCount(this.events[i]);
-  }
+  this.groups = this.events.reduce(putInGroups, []);
 }
+
+// Helper functions
+
+const putInGroups = (groups, event) => {
+  groups.some(hasSomeEventOverlappedWith(event)) || groups.push([event]);
+  return groups
+};
+
+const hasSomeEventOverlappedWith = event => group => {
+  if (!group.some(e => e.isOverlappedWith(event))) {
+    group.push(event);
+    return true
+  }
+};
 
 function layOutDay (events) {
   const model = new Model(events);
